@@ -26,6 +26,7 @@ import javafx.stage.*;
 @SuppressWarnings("WeakerAccess")
 public abstract class AbstractJavaFxApplicationSupport extends Application {
     private static Logger LOGGER = LoggerFactory.getLogger(AbstractJavaFxApplicationSupport.class);
+    private static ExecutorService executor = Executors.newFixedThreadPool(2);
 
     private static String[] savedArgs = new String[0];
 
@@ -90,8 +91,9 @@ public abstract class AbstractJavaFxApplicationSupport extends Application {
     public void init() throws Exception {
         // Load in JavaFx Thread and reused by Completable Future, but should no be a big deal.
         defaultIcons.addAll(loadDefaultIcons());
-        CompletableFuture.supplyAsync(() ->
-            SpringApplication.run(this.getClass(), savedArgs)
+        CompletableFuture.supplyAsync(() ->{
+            return SpringApplication.run(this.getClass(), savedArgs);
+	},executor
         ).whenComplete((ctx, throwable) -> {
             if (throwable != null) {
                 LOGGER.error("Failed to load spring application context: ", throwable);
@@ -104,7 +106,7 @@ public abstract class AbstractJavaFxApplicationSupport extends Application {
             }
         }).thenAcceptBothAsync(splashIsShowing, (ctx, closeSplash) -> {
             Platform.runLater(closeSplash);
-        });
+        },executor);
     }
 
 
@@ -225,6 +227,8 @@ public abstract class AbstractJavaFxApplicationSupport extends Application {
     @Override
     public void stop() throws Exception {
         super.stop();
+	executor.shutdown();
+        executor.shutdownNow();
         if (applicationContext != null) {
             applicationContext.close();
         } // else: someone did it already
